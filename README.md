@@ -9,7 +9,15 @@ Currently, the CLI can perform the following on the ESP32 Thing Plus C from Spar
  - The Blue LED connected to `GPIO_13`.
  - [In Progress] The on-board SD Card Slot connected to `GPIO_5`.
 
- This is a work in progress.
+This is a work in progress.
+
+Reference:
+
+ - Read the [ESP32 Arduino Core Documentation](https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/index.html).
+
+ - Read the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html).
+
+ - The board I used for practice is an [ESP32 Thing Plus C](https://www.sparkfun.com/products/18018) from [SparkFun](https://www.sparkfun.com/).
 
  ## Status:
 
