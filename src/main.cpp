@@ -7,7 +7,8 @@
  * checked if it is a valid command or not. If not a valid command, the message is printed 
  * to the terminal. If it is a valid command, it's sent to the `RGBcolorTask` to be parsed
  * and the variables controlling LED output are changed inside that task.
- * This program only runs/requires 1 CPU core
+ * This program only runs/requires 1 CPU core, but after it tunes up well on a single core,
+ * I will activate both cores.
  */
 
 #include <Arduino.h>
@@ -15,6 +16,8 @@
 #include "SPI.h" // can be <SPI.h>
 #include "FS.h"
 #include "SD.h"
+#include "sdCli.h"
+#include "ledCli.h"
 
 #if CONFIG_FREERTOS_UNICORE
     static const BaseType_t app_cpu = 0;
