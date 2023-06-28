@@ -1,0 +1,2 @@
+# Classify .h as C++:
+*.h linguist-language=cpp
