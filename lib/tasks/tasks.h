@@ -30,9 +30,7 @@ static const int LEDCchan = 0;                                                  
 static const int LEDCtimer = 12;                                                // 12-bit precision LEDC timer
 static const int LEDCfreq = 5000;                                               // 5000 Hz LEDC base freq.
 static const int LEDpin = LED_BUILTIN;                                          // Use pin 13 on-board LED for SW fading
-
 static const int QueueSize = 5;                                                 // 5 elements in any Queue
-//static const uint8_t BUF_LEN = 255;                                             // Buffer Length setting for user CLI terminal
 
 static QueueHandle_t msgQueue;                                                  // Queue for CLI messages
 static QueueHandle_t ledQueue;                                                  // Queue to LED commands
@@ -48,7 +46,7 @@ static const char getValues[] = "values";                                       
 
     /** SD Card Commands **/
 
-static const char sdListCmds[] = "lscmd";                                       // STRLEN = 5: prints a list of SD commands (from msgQueue)
+static const char sdListCmds[] = "lssd";                                       // STRLEN = 5: prints a list of SD commands (from msgQueue)
 static const char sdListDir[] = "lsdir ";                                       // STRLEN = 6: List subdirectories under given argument
 static const char sdCreateDir[] = "mkdir ";                                     
 static const char sdDeleteDir[] = "rmdir ";
@@ -61,6 +59,7 @@ static const char sdUsedSpace[] = "lsbytes";
 
     /** Other Commands **/
 
+static const char mainCmds[] = "lscmd";
 static const char cpuCmd[] = "cpu ";                                            // STRLEN = 4: cpu speed control command
 static const char getFreq[] = "freq";                                           // STRLEN = 4: show values for freq
 
@@ -82,11 +81,15 @@ struct SDCommand                                                                
     char msg[80];                                                               // default length of Bash Terminal Line
 };
 
-void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255);
 void sdRXTask(void *param);
 void userCLITask(void *param);
-void userCLITask(void *param);
 void msgRXTask(void *param);
-void RGBcolorWheelTask(void *param);
+void led2And13Task(void *param);
+
+inline void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)        // 'value' must be between 0 & 'valueMax'
+{
+    uint32_t duty = (4095 / valueMax) * min(value, valueMax);                   // calculate duty cycle: 2^12 - 1 = 4095
+    ledcWrite(channel, duty);                                                   // write duty cycle to LEDC
+};
 
 #endif
