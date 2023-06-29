@@ -1,14 +1,15 @@
-name: PlatformIO CI
+name: PIO CI Pull_Req
 
 on: [pull_request]
 
 jobs:
-  build:
+  main:
+    name: PIO CI PR
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@main
+      - uses: actions/cache@main
         with:
           path: |
             ~/.cache/pip
