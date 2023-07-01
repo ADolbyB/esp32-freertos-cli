@@ -21,4 +21,5 @@ Reference:
 
  ## Status:
 
+ [![PIO Build](https://github.com/ADolbyB/esp32-freertos-cli/actions/workflows/push.yml/badge.svg)](https://github.com/ADolbyB/esp32-freertos-cli/actions/workflows/push.yml)
  ![GitHub repo size](https://img.shields.io/github/repo-size/ADolbyB/esp32-freertos-cli?label=Repo%20Size&logo=Github)
