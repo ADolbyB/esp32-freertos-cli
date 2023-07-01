@@ -11,13 +11,7 @@
  * I will activate both cores.
  */
 
-#include <Arduino.h>
-#include <FastLED.h>
-#include "SPI.h" // can be <SPI.h>
-#include "FS.h"
-#include "SD.h"
-#include "tasks.h"
-
+#include "allLibs.h"
 
 #if CONFIG_FREERTOS_UNICORE
     static const BaseType_t app_cpu = 0;
@@ -35,7 +29,7 @@ void Init()
 {
     msgQueue = xQueueCreate(QueueSize, sizeof(Message));                        // Instantiate message queue
     ledQueue = xQueueCreate(QueueSize, sizeof(Command));                        // Instantiate command queue
-    sdQueue = xQueueCreate(QueueSize, sizeof(Command));                         // Instantiate SD Card Queue
+    sdQueue = xQueueCreate(QueueSize, sizeof(SDCommand));                         // Instantiate SD Card Queue
     Serial.begin(115200);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     Serial.println("\n\n=>> ESP32 FreeRTOS Command Line Demo: LEDs & SD Card <<=");
@@ -56,7 +50,7 @@ void createTasks()
     Serial.println("User CLI Task Instantiation Complete...");
 
     xTaskCreatePinnedToCore(
-        msgRXTask,
+        msgTask,
         "RX User Msgs",
         2048,
         NULL,

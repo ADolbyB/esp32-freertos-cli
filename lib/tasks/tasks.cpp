@@ -1,25 +1,24 @@
 /**
  * Joel Brigida
  * CDA 4102: Computer Architecture
- * 
+ * This is the implementation file for all task intantiation.
+ * Supporting variables & functions are in `tasks.h`
 */
-#include <Arduino.h>
+
+#include "allLibs.h"
 #include "tasks.h"
 
-void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax)  // 'value' must be between 0 & 'valueMax'
-{
-    uint32_t duty = (4095 / valueMax) * min(value, valueMax);                   // calculate duty cycle: 2^12 - 1 = 4095
-    ledcWrite(channel, duty);                                                   // write duty cycle to LEDC
-}
+/** Lowest Level Function: Read Raw User Input **/
+/** Always scanning the keyboard **/
 
 void userCLITask(void *param)                                                   // Function definition for user CLI task
 {
     Message sendMsg;                                                            // Declare user message
     char input;                                                                 // Each char of user input                                             
-    char buffer[255];                                                       // buffer to hold user input
+    char buffer[BUF_LEN];                                                       // buffer to hold user input
     uint8_t index = 0;                                                          // character count
 
-    memset(buffer, 0, 255);                                                 // Clear user input buffer
+    memset(buffer, 0, BUF_LEN);                                                 // Clear user input buffer
 
     for(;;)
     {       
@@ -27,7 +26,7 @@ void userCLITask(void *param)                                                   
         {
             input = Serial.read();                                              // read each character of user input
 
-            if(index < (255 - 1))
+            if(index < (BUF_LEN - 1))
             {
                 buffer[index] = input;                                          // write received character to buffer
                 index++;
@@ -37,7 +36,7 @@ void userCLITask(void *param)                                                   
                 Serial.print("\n");
                 strcpy(sendMsg.msg, buffer);                                    // copy input to Message node
                 xQueueSend(msgQueue, (void *)&sendMsg, 10);                     // Send to msgQueue for interpretation
-                memset(buffer, 0, 255);                                     // Clear input buffer
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
                 index = 0;                                                      // Reset index counter.
             }
             else // echo each character back to the serial terminal
@@ -49,223 +48,262 @@ void userCLITask(void *param)                                                   
     }
 }
 
-void msgRXTask(void *param) /*** CLI Input Validation / Handling ***/           /*** Analyze Each Node **/
-{
-    Message someMsg;                                                            // Each object given from the user
-    Command someCmd;
-    SDCommand sdCardCmd;                                                        // New object for SD Card Comms
-    uint8_t localCPUFreq;                                                       // 80, 160 or 240Mhz
-    char buffer[255];                                                       // string buffer for Terminal Message
-    short ledDelay;                                                             // blink delay in ms
-    short fadeAmt;
-    short pattern;
-    short bright;
+/** MidLevel Function: msgTask() 
+ *  RX: Input Validation
+ *  TX: Determine what goes to which queue & SEND 
+ *  ELSE: Yield to other tasks
+ *  Description: receives packets of user data and determines if they
+ *  are valid CLI ipput statements.
+ *  If(valid): can be passed on, IF(!Valid): Throw it out STAT.
+ *  Perform simple functions only: `lscmd`, `cpu ` &  functions. They require
+ *  No add'l resources.
+**/
 
-    memset(buffer, 0, 255);                                                 // Clear input buffer
+
+void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
+{
+    Message someMsg;                                                                // Each object rec'd from User Input
+    Command ledCmd;
+    SDCommand sdCardCmd;                                                            // New object for SD Card Comms
+    uint8_t localCPUFreq;                                                           // 80, 160 or 240Mhz
+    char buffer[BUF_LEN];                                                           // string buffer for Terminal Message
+    char matchingString[15];
+    char userInput[BUF_LEN];
+    short ledValue = 0;
+    int goodInput = -1;
+
+    memset(buffer, 0, BUF_LEN);                                                     // Clear input buffer
 
     for(;;)
     {
-        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)              // If a `Message` is rec'd from queue
-        {   
-            /* LED Commands */
-            if(memcmp(someMsg.msg, fadeCmd, 5) == 0)                            // Check for `fade ` command: Ref: https://cplusplus.com/reference/cstring/memcmp/
+        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)                  // If a `Message` is rec'd from queue
+        {
+            Serial.println("User Input Received...Checking Validity...");
+            goodInput = testInput(someMsg.msg);                                     // -1 = NO MATCH, otherwise return INDEX#
+            int j = int(goodInput);
+            
+            if(goodInput >= 0)                                                      // found a Matching string if goodInput >= 0
             {
-                char* tailPtr = someMsg.msg + 5;                                // pointer arithmetic: move pointer to integer value
-                fadeAmt = atoi(tailPtr);                                        // retreive integer value at end of string
-                fadeAmt = abs(fadeAmt);                                         // fadeAmt can't be negative
-                if(fadeAmt <= 0 || fadeAmt > 128)
-                {
-                    Serial.println("Value Must Be Between 1 & 128");
-                    Serial.println("Returning....");
-                    continue;
-                }
-                strcpy(someCmd.cmd, "fade");
-                someCmd.amount = fadeAmt;                                       // copy input to Command node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-            }
-            else if(memcmp(someMsg.msg, delayCmd, 6) == 0)                      // Check for `delay ` command
-            {
-                char* tailPtr = someMsg.msg + 6;                                // pointer arithmetic: move pointer to integer value
-                ledDelay = atoi(tailPtr);                                       // retreive integer value at end of string
-                ledDelay = abs(ledDelay);                                       // ledDelay can't be negative
-                if(ledDelay <= 0)
-                {
-                    Serial.println("Value Must Be > 0");
-                    Serial.println("Returning....");
-                    continue;
-                }
-                strcpy(someCmd.cmd, "delay");
-                someCmd.amount = ledDelay;                                      // copy input to Command node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation                    // Clear input buffer
-            }
-            else if(memcmp(someMsg.msg, patternCmd, 8) == 0)                    // Check for `pattern ` command
-            {
-                char* tailPtr = someMsg.msg + 8;                                // pointer arithmetic: move pointer to integer value
-                pattern = atoi(tailPtr);                                        // retreive integer value at end of string
-                pattern = abs(pattern);                                         // patternType can't be negative
+                strcpy(matchingString, sdCardCmd.cmd);                                    // copy matching string
+                sprintf(buffer, "\nMatch Found: %s", matchingString);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                             // Clear input buffer
 
-                strcpy(someCmd.cmd, "pattern");
-                someCmd.amount = pattern;                                       // copy input to Command node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-            }
-            else if(memcmp(someMsg.msg, brightCmd, 7) == 0)                     // Check for `bright ` command
-            {
-                char* tailPtr = someMsg.msg + 7;                                // pointer arithmetic: move pointer to integer value
-                bright = atoi(tailPtr);                                         // retreive integer value at end of string
-                bright = abs(bright);                                           // ledDelay can't be negative
-                
-                strcpy(someCmd.cmd, "bright");
-                someCmd.amount = bright;                                        // copy input to Command node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-            }
-            else if(memcmp(someMsg.msg, cpuCmd, 4) == 0)                        // check for `cpu ` command
-            {
-                char* tailPtr = someMsg.msg + 4;
-                localCPUFreq = atoi(tailPtr);
-                localCPUFreq = abs(localCPUFreq);
+                if(CPU_L <= goodInput && goodInput <= CPU_H)                                // Only for "EASY" stuff: `lscmd`, `cpu`, `freq`
+                {
+                    if(memcmp(someMsg.msg, allCommands[0], strlen(allCommands[0])) == 0)                 // `lscmd` command
+                    {
+                        Serial.print("\n\nLED Commands:\n\n");
+                        Serial.print("Enter \'delay xxx\' to change RGB Fade Speed.\n");
+                        Serial.print("Enter \'fade xxx\' to change RGB Fade Amount.\n");
+                        Serial.print("Enter \'pattern xxx\' to change RGB Pattern.\n");
+                        Serial.print("Enter \'bright xxx\' to change RGB Brightness (Only Pattern 3).\n");
+                        Serial.print("Enter \'cpu xxx\' to change CPU Frequency.\n");
+                        Serial.print("Enter \'values\' to retrieve current delay, fade, pattern & bright values.\n");
+                        Serial.print("Enter \'freq\' to retrieve current CPU, XTAL & APB Frequencies.\n");
+                        Serial.print("\nSD Card Commands:\n\n");
+                        Serial.print("Enter \'something\' to change SD Card something.\n");
+                        Serial.print("Enter \'another thing\' to change SD Card another thing.\n");
+                        Serial.print("Enter \'third thing\' to change SD Card third thing.\n");
 
-                strcpy(someCmd.cmd, "cpu");
-                someCmd.amount = localCPUFreq;                                  // copy input to Message node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-            }
-            else if(memcmp(someMsg.msg, getValues, 6) == 0)
+                    }
+                    else if(memcmp(someMsg.msg, allCommands[1], strlen(allCommands[1])) == 0)            // if `cpu` command rec'd (complare to global var)
+                    {
+                        localCPUFreq = ledCmd.amount;
+                        if(localCPUFreq != 240 && localCPUFreq != 160 && localCPUFreq != 80)
+                        {
+                            Serial.println("Invalid Input: Must Be 240, 160, or 80Mhz");
+                            Serial.println("Returning....\n");
+                            continue;
+                        }
+                        setCpuFrequencyMhz(localCPUFreq);                           // Set New CPU Freq
+                        vTaskDelay(10 / portTICK_PERIOD_MS);                        // yield for a brief moment
+
+                        sprintf(buffer, "\nNew CPU Frequency is: %dMHz\n\n", getCpuFrequencyMhz());
+                        Serial.print(buffer);
+                        memset(buffer, 0, BUF_LEN);
+                    }
+                    else if(memcmp(someMsg.msg, allCommands[2], strlen(allCommands[2])) == 0)   // if `freq` command rec'd (compare to global var)
+                    {
+                        sprintf(buffer, "\nCPU Frequency is:  %d MHz", getCpuFrequencyMhz());
+                        Serial.print(buffer);
+                        memset(buffer, 0, BUF_LEN);
+                        sprintf(buffer, "\nXTAL Frequency is: %d MHz", getXtalFrequencyMhz());
+                        Serial.print(buffer);
+                        memset(buffer, 0, BUF_LEN); 
+                        sprintf(buffer, "\nAPB Freqency is:   %d MHz\n\n", (getApbFrequency() / 1000000));
+                        Serial.print(buffer);
+                        memset(buffer, 0, BUF_LEN);
+                    }
+                } // END if(0 <= goodInput && goodInput <= 2)
+                else if(LED_L <= goodInput && goodInput <= LED_H)                   // LED COMMANDS: SEND TO LED QUEUE
+                {
+                    char* tailPtr = someMsg.msg + strlen(allCommands[goodInput]);
+                    ledValue = atoi(tailPtr);
+                    ledValue = abs(ledValue);
+                    strcpy(ledCmd.cmd, allCommands[goodInput]);
+                    ledCmd.amount = ledValue;
+                    xQueueSend(ledQueue, (void *)&ledCmd, 10);                      // Send to ledQueue for interpretation
+                }
+                else if(SD_L <= goodInput && goodInput <= SD_H)                     // SD Commands: SEND TO SD QUEUE
+                {
+                    //char* tailPtr = someMsg.msg + strlen(allCommands[goodInput])
+                    char* spacePos = strchr(someMsg.msg, ' ');
+                    strcpy(sdCardCmd.cmd, allCommands[goodInput]);
+                    strcpy(sdCardCmd.msg, spacePos + 1);                            // Retrieve 2nd portion of SC Command
+                    xQueueSend(sdQueue, (void *)&sdCardCmd, 10);                    // Send to sdQueue for interpretation
+                }
+                else // Is this case valid??
+                {
+                    sprintf(buffer, "\n\nThis should not happen: goodInput = %d\n\n", goodInput);
+                    Serial.print(buffer);
+                    memset(buffer, 0, BUF_LEN);
+                }
+            } // END if(goodInput > 0)
+            else // No input match (returned -1)
             {
-                strcpy(someCmd.cmd, "values");
-                someCmd.amount = 0;                                             // copy input to Message node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-            }
-            else if(memcmp(someMsg.msg, getFreq, 4) == 0)
-            {
-                strcpy(someCmd.cmd, "freq");
-                someCmd.amount = 0;                                             // copy input to Message node
-                xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
+                strcpy(someMsg.msg, userInput);
+                sprintf(buffer, "\nInvalid Command: %s", userInput);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);
             }
         }
-        vTaskDelay(20 / portTICK_PERIOD_MS);                                    // Yield to other tasks
-    }
+        vTaskDelay(25 / portTICK_PERIOD_MS);                                        // Yield to other tasks
+    }// END for(;;)
 }
+/** led2And13Task() listens for changes from the msgTask() **/
 
-void RGBcolorWheelTask(void *param)
+void led2And13Task(void *param)
 {
     /** Init LEDs & Functions **/
     
     CRGB leds[NUM_LEDS];                                                            // Array for RGB LED on GPIO_2
     FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(75);
-    leds[0] = CRGB::White;                                                      // Power up all Pin 2 LEDs for Power On Test
+    leds[0] = CRGB::White;                                                          // Power up all Pin 2 LEDs for Power On Test
     FastLED.show();
     
-    ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                                   // Setup LEDC timer (For LED_BUILTIN)
-    ledcAttachPin(BLUE_LED, LEDCchan);                                          // Attach timer to LED pin
-    vTaskDelay(2000 / portTICK_PERIOD_MS);                                      // 2 Second Power On Delay
+    ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                                       // Setup LEDC timer (For LED_BUILTIN)
+    ledcAttachPin(BLUE_LED, LEDCchan);                                              // Attach timer to LED pin
+    vTaskDelay(2000 / portTICK_PERIOD_MS);                                          // 2 Second Power On Delay
 
     Serial.println("Power On Test Complete...");
     leds[0] = CRGB::Black;
     FastLED.show();
-    vTaskDelay(500 / portTICK_PERIOD_MS);                                       // 0.5 Second off before Starting Tasks
+    vTaskDelay(500 / portTICK_PERIOD_MS);                                           // 0.5 Second off before Starting Tasks
 
-    Command someCmd;                                                            // Received from `msgRXTask`
-    uint8_t localCPUFreq;
-    char buffer[255];
+    Command ledCmd;                                                                 // Received from `msgTask`
+    char buffer[BUF_LEN];
      
-    int fadeInterval = 5;                                                       // LED fade interval
-    int delayInterval = 30;                                                     // Delay between changing fade intervals
-    int patternType = 1;                                                        // default LED pattern: case 1
-    int brightVal = 250;                                                        // Brightness Command (Pattern 3) initial value
-    int brightness = 65;                                                        // Initial Brightness value
+    int fadeInterval = 5;                                                           // LED fade interval
+    int delayInterval = 30;                                                         // Delay between changing fade intervals
+    int patternType = 1;                                                            // default LED pattern: case 1
+    int brightVal = 250;                                                            // Brightness Command (Pattern 3) initial value
+    int brightness = 65;                                                            // Initial Brightness value
+    int ledDelay;                                                                   // blink delay in ms
+    int fadeAmt;
+    int pattern;
+    int bright;
 
-    short hueVal = 0;                                                           // add 32 each time for each color...
-    bool swap = false;                                                          // Swap Red/Blue colors
+    short hueVal = 0;                                                               // add 32 each time for each color...
+    bool swap = false;                                                              // Swap Red/Blue colors
     bool lightsOff = false;
     uint8_t accessLEDCAnalog = 1;
-    leds[0] = CRGB::Red;                                                        // Start with Red LED when instantiated
+    leds[0] = CRGB::Red;                                                            // Start with Red LED when instantiated
     FastLED.show();
 
     for(;;)
     {
         /*** Command Handling ***/
-        if(xQueueReceive(ledQueue, (void *)&someCmd, 0) == pdTRUE)              // if command received from MSG QUEUE
+        if(xQueueReceive(ledQueue, (void *)&ledCmd, 0) == pdTRUE)                   // if command received from MSG QUEUE
         {
-            if(memcmp(someCmd.cmd, fadeCmd, 4) == 0)                            // if `fade` command rec'd (compare to global var)
+            /* LED Commands */
+            if(memcmp(ledCmd.cmd, allCommands[LED_L], strlen(allCommands[LED_L])) == 0)  // Check for `delay ` command: Ref: https://cplusplus.com/reference/cstring/memcmp/
             {
-                fadeInterval = someCmd.amount;
-                sprintf(buffer, "New Fade Value: %d\n\n", someCmd.amount);      // BUGFIX: sometimes displays negative number
-                Serial.print(buffer);                
-                memset(buffer, 0, 255); 
-            }
-            else if(memcmp(someCmd.cmd, delayCmd, 5) == 0)                      // if `delay` command rec'd (compare to global var)
-            {
-                delayInterval = someCmd.amount;
-                sprintf(buffer, "New Delay Value: %dms\n\n", someCmd.amount);
-                Serial.print(buffer);
-                memset(buffer, 0, 255);  
-            }
-            else if((memcmp(someCmd.cmd, patternCmd, 6) == 0))                  // if `pattern` command rec'd (compare to global var)
-            {
-                patternType = someCmd.amount;
-                if(int(abs(patternType)) <= NUM_PATTERNS && int(patternType) != 0) // BUGFIX: "New Pattern: 0" with invalid entry
+                ledDelay = ledCmd.amount;
+                // char* tailPtr = ledCmd.cmd + strlen(allCommands[LED_L]);            // pointer arithmetic: move pointer to integer value
+                // ledDelay = atoi(tailPtr);                                           // retreive integer value at end of string
+                // ledDelay = abs(ledDelay);                                           // ledDelay can't be negative
+                if(ledDelay <= 0)
                 {
-                    sprintf(buffer, "New Pattern: %d\n\n", someCmd.amount);
+                    Serial.println("Value Must Be > 0");
+                    Serial.println("Returning....");
+                    continue;
+                }
+                delayInterval = ledDelay;
+                sprintf(buffer, "New Delay Value: %dms\n\n", ledCmd.amount);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);  
+            }
+            else if(memcmp(ledCmd.cmd, allCommands[LED_L + 1], strlen(allCommands[LED_L + 1])) == 0) // Check for `fade ` command
+            {
+                fadeAmt = ledCmd.amount;
+                // char* tailPtr = ledCmd.cmd + strlen(allCommands[LED_L  + 1]);       // pointer arithmetic: move pointer to integer value
+                // fadeAmt = atoi(tailPtr);                                            // retreive integer value at end of string
+                fadeAmt = abs(fadeAmt);                                             // fadeAmt can't be negative
+                if(fadeAmt <= 0 || fadeAmt > 128)
+                {
+                    Serial.println("Value Must Be Between 1 & 128");
+                    Serial.println("Returning....");
+                    continue;
+                }
+                fadeInterval = fadeAmt;
+                sprintf(buffer, "New Fade Value: %d\n\n", ledCmd.amount);           // BUGFIX: sometimes displays negative number
+                Serial.print(buffer);                
+                memset(buffer, 0, BUF_LEN); 
+            }
+            else if(memcmp(ledCmd.cmd, allCommands[LED_L + 2], strlen(allCommands[LED_L + 2])) == 0)  // Check for `pattern ` command
+            {
+                // char* tailPtr = ledCmd.cmd + strlen(allCommands[LED_L + 2]);        // pointer arithmetic: move pointer to integer value
+                // pattern = atoi(tailPtr);                                            // retreive integer value at end of string
+                // pattern = abs(pattern);                                             // patternType can't be negative
+                
+                
+                patternType = ledCmd.amount;
+                patternType = abs(patternType);
+                if(int(abs(patternType)) <= NUM_PATTERNS && int(patternType) != 0)  // BUGFIX: "New Pattern: 0" with invalid entry
+                {
+                    sprintf(buffer, "New Pattern: %d\n\n", ledCmd.amount);
                     Serial.print(buffer);
-                    memset(buffer, 0, 255);
+                    memset(buffer, 0, BUF_LEN);
                 }
             }
-            else if(memcmp(someCmd.cmd, brightCmd, 5) == 0)                     // if `bright` command rec'd (compare to global var)
+            else if(memcmp(ledCmd.cmd, allCommands[LED_L + 3], strlen(allCommands[LED_L + 3])) == 0)    // Check for `bright ` command
             {
-                brightVal = someCmd.amount;                
+                bright = ledCmd.amount;
+                bright = abs(bright);
+                // char* tailPtr = ledCmd.cmd + strlen(allCommands[LED_L + 3]));       // pointer arithmetic: move pointer to integer value
+                // bright = atoi(tailPtr);                                             // retreive integer value at end of string
+                // bright = abs(bright);                                               // ledDelay can't be negative
+                brightVal = bright;                
                 if(brightVal >= 255)
                 {
                     Serial.println("Maximum Value 255...");
                     brightVal = 255;
                 }               
-                sprintf(buffer, "New Brightness: %d / 255\n\n", someCmd.amount);
+                sprintf(buffer, "New Brightness: %d / 255\n\n", ledCmd.amount);
                 Serial.print(buffer);
-                memset(buffer, 0, 255);
+                memset(buffer, 0, BUF_LEN);
             }
-            else if(memcmp(someCmd.cmd, cpuCmd, 3) == 0)                        // if `cpu` command rec'd (complare to global var)
+            else if(memcmp(ledCmd.cmd, allCommands[LED_H], strlen(allCommands[LED_H])) == 0)                        // check for `cpu ` command
             {
-                localCPUFreq = someCmd.amount;
-                if(localCPUFreq != 240 && localCPUFreq != 160 && localCPUFreq != 80)
-                {
-                    Serial.println("Invalid Input: Must Be 240, 160, or 80Mhz");
-                    Serial.println("Returning....\n");
-                    continue;
-                }
-                setCpuFrequencyMhz(localCPUFreq);                               // Set New CPU Freq
-                vTaskDelay(10 / portTICK_PERIOD_MS);                            // yield for a brief moment
-
-                sprintf(buffer, "\nNew CPU Frequency is: %dMHz\n\n", getCpuFrequencyMhz());
+                // List all LED Values
+                sprintf(buffer, "Listing All Current LED Values: \n");
                 Serial.print(buffer);
-                memset(buffer, 0, 255);
-            }
-            else if(memcmp(someCmd.cmd, getValues, 6) == 0)                     // if `values` command rec'd (complare to global var)
-            {
-                sprintf(buffer, "\nCurrent Delay = %dms.           (default = 30ms)\n", delayInterval);
+                memset(buffer, 0, BUF_LEN);
+                sprintf(buffer, "Current Delay = %dms.           (default = 30ms)\n", delayInterval);
                 Serial.print(buffer);
-                memset(buffer, 0, 255);
+                memset(buffer, 0, BUF_LEN);
                 sprintf(buffer, "Current Fade Interval = %d.      (default = 5)\n", abs(fadeInterval));
                 Serial.print(buffer);
-                memset(buffer, 0, 255);
+                memset(buffer, 0, BUF_LEN);
                 sprintf(buffer, "Current Pattern = %d.            (default = 1)\n", patternType);
                 Serial.print(buffer);
-                memset(buffer, 0, 255);
+                memset(buffer, 0, BUF_LEN);
                 sprintf(buffer, "Current Brightness = %d / 255. (default = 250)\n\n", brightVal);
                 Serial.print(buffer);
-                memset(buffer, 0, 255);
+                memset(buffer, 0, BUF_LEN);
             }
-            else if(memcmp(someCmd.cmd, getFreq, 4) == 0)                       // if `freq` command rec'd (compare to global var)
-            {
-                sprintf(buffer, "\nCPU Frequency is:  %d MHz", getCpuFrequencyMhz());
-                Serial.print(buffer);
-                memset(buffer, 0, 255);
-                sprintf(buffer, "\nXTAL Frequency is: %d MHz", getXtalFrequencyMhz());
-                Serial.print(buffer);
-                memset(buffer, 0, 255); 
-                sprintf(buffer, "\nAPB Freqency is:   %d MHz\n\n", (getApbFrequency() / 1000000));
-                Serial.print(buffer);
-                memset(buffer, 0, 255);
-            }
-            vTaskDelay(10 / portTICK_PERIOD_MS);                                // yield briefly (only if command rec'd)
         }
         else /*** Show LED Patterns ***/
         {
@@ -409,163 +447,91 @@ void RGBcolorWheelTask(void *param)
     }
 }
 
-void sdRXTask(void *param) /*** CLI Input Validation / Handling ***/           /*** Analyze Each Node **/
+void sdRXTask(void *param)
 {
-    Message someMsg;                                                            // Each object given from the user
-    Command someCmd;
     SDCommand sdCardCmd;                                                        // New object for SD Card Comms
-    uint8_t localCPUFreq;                                                       // 80, 160 or 240Mhz
-    char buffer[255];                                                       // string buffer for Terminal Message
+    char buffer[BUF_LEN];                                                       // string buffer for Terminal Message
+    uint64_t cardSize;
     short ledDelay;                                                             // blink delay in ms
     short fadeAmt;
     short pattern;
     short bright;
 
-    memset(buffer, 0, 255);                                                 // Clear input buffer
+    memset(buffer, 0, BUF_LEN);                                                 // Clear input buffer
 
-    for(;;)
+    for (;;)
     {
-        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)              // If a `Message` is rec'd from queue
-        {   
+        if(xQueueReceive(sdQueue, (void *)&sdCardCmd, 0) == pdTRUE)              // If an `sdCardCmd` is rec'd from queue
+        { 
 
-            if(memcmp(someMsg.msg, sdListCmds, 5) == 0)                         // if `lscmd` command rec'd (compare to global var)
+            if(memcmp(sdCardCmd.cmd, allCommands[SD_L], strlen(allCommands[SD_L])) == 0) // if `lssd` command rec'd (compare to global var)
             {    
-                /* LED Commands */
-                if(memcmp(someMsg.msg, fadeCmd, 5) == 0)                            // Check for `fade ` command: Ref: https://cplusplus.com/reference/cstring/memcmp/
-                {
-                    char* tailPtr = someMsg.msg + 5;                                // pointer arithmetic: move pointer to integer value
-                    fadeAmt = atoi(tailPtr);                                        // retreive integer value at end of string
-                    fadeAmt = abs(fadeAmt);                                         // fadeAmt can't be negative
-                    if(fadeAmt <= 0 || fadeAmt > 128)
+                    Serial.println("lssd: Listing All SD Card Commands: \n");
+                    /* Start with 'List all SD commands' command */
+                    for(int i = SD_L; i <= SD_H; i++)
                     {
-                        Serial.println("Value Must Be Between 1 & 128");
-                        Serial.println("Returning....");
-                        continue;
+                        strcpy(buffer, allCommands[i]);
+                        Serial.println(buffer);
                     }
-                    strcpy(someCmd.cmd, "fade");
-                    someCmd.amount = fadeAmt;                                       // copy input to Command node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-                }
-                else if(memcmp(someMsg.msg, delayCmd, 6) == 0)                      // Check for `delay ` command
-                {
-                    char* tailPtr = someMsg.msg + 6;                                // pointer arithmetic: move pointer to integer value
-                    ledDelay = atoi(tailPtr);                                       // retreive integer value at end of string
-                    ledDelay = abs(ledDelay);                                       // ledDelay can't be negative
-                    if(ledDelay <= 0)
-                    {
-                        Serial.println("Value Must Be > 0");
-                        Serial.println("Returning....");
-                        continue;
-                    }
-                    strcpy(someCmd.cmd, "delay");
-                    someCmd.amount = ledDelay;                                      // copy input to Command node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation                    // Clear input buffer
-                }
-                else if(memcmp(someMsg.msg, patternCmd, 8) == 0)                    // Check for `pattern ` command
-                {
-                    char* tailPtr = someMsg.msg + 8;                                // pointer arithmetic: move pointer to integer value
-                    pattern = atoi(tailPtr);                                        // retreive integer value at end of string
-                    pattern = abs(pattern);                                         // patternType can't be negative
-
-                    strcpy(someCmd.cmd, "pattern");
-                    someCmd.amount = pattern;                                       // copy input to Command node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-                }
-                else if(memcmp(someMsg.msg, brightCmd, 7) == 0)                     // Check for `bright ` command
-                {
-                    char* tailPtr = someMsg.msg + 7;                                // pointer arithmetic: move pointer to integer value
-                    bright = atoi(tailPtr);                                         // retreive integer value at end of string
-                    bright = abs(bright);                                           // ledDelay can't be negative
-                    
-                    strcpy(someCmd.cmd, "bright");
-                    someCmd.amount = bright;                                        // copy input to Command node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-                }
-                else if(memcmp(someMsg.msg, cpuCmd, 4) == 0)                        // check for `cpu ` command
-                {
-                    char* tailPtr = someMsg.msg + 4;
-                    localCPUFreq = atoi(tailPtr);
-                    localCPUFreq = abs(localCPUFreq);
-
-                    strcpy(someCmd.cmd, "cpu");
-                    someCmd.amount = localCPUFreq;                                  // copy input to Message node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-                }
-                else if(memcmp(someMsg.msg, getValues, 6) == 0)
-                {
-                    strcpy(someCmd.cmd, "values");
-                    someCmd.amount = 0;                                             // copy input to Message node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-                }
-                else if(memcmp(someMsg.msg, getFreq, 4) == 0)
-                {
-                    strcpy(someCmd.cmd, "freq");
-                    someCmd.amount = 0;                                             // copy input to Message node
-                    xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
-                }
-                
-                /*** SD Card Commands ***/                                          /* Start with 'List all commands' command */
-                
-                else if(memcmp(someMsg.msg, sdListCmds, 5) == 0)                    // if `lscmd` command rec'd (compare to global var)
-                {   
-                    // send sdCardCmd over the sdQueue to perform an operation on the SD Card
-                    strcpy(sdCardCmd.cmd, "lscmd");                                 // pass "lscmd" on to the SD card queue? Handle this over there instead.
-                    strcpy(sdCardCmd.msg, "");                                      // send an empty string? maybe just call a txt that lists what the commands are?
-                    xQueueSend(sdQueue, (void *)&someCmd, 10);                      // send `lscmd` to `sdQueue` ... wait 10ms if busy
-                }
-                else if(memcmp(someMsg.msg, sdListDir, 6) == 0)                     // if `lsdir ` command rec'd (compare to global var)
-                {
-                    // send sdCardCmd over the sdQueue to perform an operation on the SD Card
-                    strcpy(sdCardCmd.cmd, "lsdir");                                 // pass "lsdir" on to the SD card queue...Handle this over there instead.
-                    strcpy(sdCardCmd.msg, "");                                      // send empty string (no message)
-                    xQueueSend(sdQueue, (void *)&someCmd, 10);                      // send `lscmd` to `sdQueue`
-                    // memset(buffer, 0, 255);  
-                }
-                else if(memcmp(someMsg.msg, sdCreateDir, 6) == 0)                   // if `mkdir ` command rec'd (compare to global var)
-                {
-
-                    // need to pass to the SD Queue...
-                    // each element rec'd, handle in the proper queue...
-                    // Found a Command to create dir...
-                    // FW to sdCardQueue....handle it over there...
-                }
-                else if(memcmp(someMsg.msg, sdDeleteDir, 6) == 0)                   // if `rmdir ` command rec'd (compare to global var)
-                {
-                    // need a directory for a choice...parse string again....
-                    // memset(buffer, 0, 255);
-                }
-                else if(memcmp(someMsg.msg, sdReadFile, 9) == 0)                    // if `readfile ` command rec'd (compare to global var)
-                {
-
-                }       
-                else if(memcmp(someMsg.msg, sdWriteFile, 10) == 0)                  // if `writefile ` command rec'd
-                {
-                    // memset(buffer, 0, 255);
-                }
-                else if(memcmp(someMsg.msg, sdAppendFile, 7) == 0)                  // if `append ` command rec'd
-                {
-                    // memset(buffer, 0, 255);
-                }
-                else if(memcmp(someMsg.msg, sdRenameFile, 7) == 0)                  // if `rename ` command rec'd
-                {
-
-                }
-                else if(memcmp(someMsg.msg, sdDeleteFile, 7) == 0)                  // if `rmfile ` command rec'd
-                {
-
-                }
-                else if(memcmp(someMsg.msg, sdUsedSpace, 7) == 0)                   // if `lsbytes` command rec'd
-                {
-                
-                }
-                else // Not a command: Print the message to the terminal
-                {
-                    sprintf(buffer, "Invalid Command: %s\n", someMsg.msg);          // print user message
-                    Serial.print(buffer);
-                    memset(buffer, 0, 255);                                     // Clear input buffer
-                }
             }
-            vTaskDelay(20 / portTICK_PERIOD_MS);                                    // Yield to other tasks
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 1], strlen(allCommands[SD_L + 1])) == 0)  // if `lsdir` command rec'd
+            {   
+               
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 2], strlen(allCommands[SD_L + 2])) == 0)// if `lsdir ` command rec'd (compare to global var)
+            {
+
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 3], strlen(allCommands[SD_L + 3])) == 0)// if `mkdir ` command rec'd (compare to global var)
+            {
+
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 4], strlen(allCommands[SD_L + 4])) == 0)// if `rmdir ` command rec'd (compare to global var)
+            {
+
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 5], strlen(allCommands[SD_L + 5])) == 0)// if `readfile ` command rec'd (compare to global var)
+            {
+
+            }       
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 6], strlen(allCommands[SD_L + 6])) == 0)// if `writefile ` command rec'd
+            {
+            
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 7], strlen(allCommands[SD_L + 7])) == 0)// if `append ` command rec'd
+            {
+
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 8], strlen(allCommands[SD_L + 8])) == 0)// if `rename ` command rec'd
+            {
+
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 9], strlen(allCommands[SD_L + 9])) == 0)// if `rmfile ` command rec'd
+            {
+
+            }
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_H], strlen(allCommands[SD_H])) == 0)// if `lsbytes` command rec'd
+            {
+                cardSize = SD.cardSize() / (1024 * 1024);
+                sprintf(buffer, "SD Card Size: %lluMB\n", cardSize);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+                
+                sprintf(buffer, "Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+
+                sprintf(buffer, "Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+            }
+            else // Not a command: Print the message to the terminal
+            {
+                sprintf(buffer, "Invalid Command: %s\n", sdCardCmd.cmd);          // print user message
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+            }
         }
+        vTaskDelay(20 / portTICK_PERIOD_MS);                         // CLI adjustable delay (non blocking)
     }
 }
