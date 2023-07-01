@@ -1,10 +1,10 @@
-name: PlatformIO Build
+name: PIO Build
 
 on: [push]
 
 jobs:
   main:
-    name: PIO CI PR
+    name: PIO BP
     runs-on: ubuntu-latest
 
     steps:
