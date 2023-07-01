@@ -1,6 +1,6 @@
-name: PIO CI Pull_Req
+name: PlatformIO Build
 
-on: [pull_request]
+on: [push]
 
 jobs:
   main:

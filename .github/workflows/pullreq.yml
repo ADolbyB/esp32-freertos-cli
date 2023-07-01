@@ -1,0 +1,33 @@
+name: PlatformIO CI
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: [ubuntu-latest, windows-latest]
+    strategy:
+      example: [examples/Bluetooth/PS3SPP/PS3SPP.ino, examples/pl2303/pl2303_gps/pl2303_gps.ino]
+
+    steps:
+      - uses: actions/checkout@main
+      - uses: actions/cache@main
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      - name: Download external library
+        run: |
+          wget https://github.com/ADolbyB/SparkFun_Thing_Plus_ESP32_WROOM_C/archive/refs/heads/main.zip -O /tmp/esp32.zip
+          unzip /tmp/esp32.zip -d /tmp
+
+      - name: Run PlatformIO
+        run: pio ci --lib="." --lib="/tmp/esp32-main/" --board=esp32thing_plus
+        env:
+          PLATFORMIO_CI_SRC: ${{ matrix.example }}
