@@ -468,47 +468,48 @@ void sdRXTask(void *param)
             {    
                     Serial.println("lssd: Listing All SD Card Commands: \n");
                     /* Start with 'List all SD commands' command */
+                    int j = 1;  // Command Number
                     for(int i = SD_L; i <= SD_H; i++)
                     {
-                        strcpy(buffer, allCommands[i]);
+                        sprintf(buffer, "Command #%d", j);
                         Serial.println(buffer);
+                        memset(buffer, 0, BUF_LEN);
+                        sprintf(buffer, allCommands[i]);
+                        Serial.println(buffer);
+                        memset(buffer, 0, BUF_LEN);
                     }
             }
             else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 1], strlen(allCommands[SD_L + 1])) == 0)  // if `lsdir` command rec'd
             {   
-               
+                Serial.println("LSDIR COMMAND....");
             }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 2], strlen(allCommands[SD_L + 2])) == 0)// if `lsdir ` command rec'd (compare to global var)
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 2], strlen(allCommands[SD_L + 2])) == 0)// if `mkdir ` command rec'd (compare to global var)
             {
-
+                Serial.println("MKDIR COMMAND....");
             }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 3], strlen(allCommands[SD_L + 3])) == 0)// if `mkdir ` command rec'd (compare to global var)
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 3], strlen(allCommands[SD_L + 3])) == 0)// if `rmdir ` command rec'd (compare to global var)
             {
-
+                Serial.println("RMDIR COMMAND....");
             }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 4], strlen(allCommands[SD_L + 4])) == 0)// if `rmdir ` command rec'd (compare to global var)
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 4], strlen(allCommands[SD_L + 4])) == 0)// if `readfile ` command rec'd (compare to global var)
             {
-
+                Serial.println("READFILE COMMAND...");
             }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 5], strlen(allCommands[SD_L + 5])) == 0)// if `readfile ` command rec'd (compare to global var)
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 5], strlen(allCommands[SD_L + 5])) == 0)// if `writefile ` command rec'd (compare to global var)
             {
-
+                Serial.println("WRITEFILE COMMAND....");
             }       
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 6], strlen(allCommands[SD_L + 6])) == 0)// if `writefile ` command rec'd
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 6], strlen(allCommands[SD_L + 6])) == 0)// if `append ` command rec'd
             {
-            
+                Serial.println("APPEND COMMAND....");
             }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 7], strlen(allCommands[SD_L + 7])) == 0)// if `append ` command rec'd
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 7], strlen(allCommands[SD_L + 7])) == 0)// if `rename ` command rec'd
             {
-
+                Serial.println("RENAMECOMMAND....");
             }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 8], strlen(allCommands[SD_L + 8])) == 0)// if `rename ` command rec'd
+            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 8], strlen(allCommands[SD_L + 8])) == 0)// if `rmfile ` command rec'd
             {
-
-            }
-            else if(memcmp(sdCardCmd.cmd, allCommands[SD_L + 9], strlen(allCommands[SD_L + 9])) == 0)// if `rmfile ` command rec'd
-            {
-
+                Serial.println("RMFILE COMMAND....");
             }
             else if(memcmp(sdCardCmd.cmd, allCommands[SD_H], strlen(allCommands[SD_H])) == 0)// if `lsbytes` command rec'd
             {
