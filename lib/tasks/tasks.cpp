@@ -5,7 +5,6 @@
  * Supporting variables & functions are in `tasks.h`
 */
 
-#include "allLibs.h"
 #include "tasks.h"
 
 /** Lowest Level Function: Read Raw User Input **/
@@ -31,11 +30,12 @@ void userCLITask(void *param)                                                   
                 buffer[index] = input;                                          // write received character to buffer
                 index++;
             }
+
             if(input == '\n')                                                   // Check when user presses ENTER key
             {
                 Serial.print("\n");
                 strcpy(sendMsg.msg, buffer);                                    // copy input to Message node
-                xQueueSend(msgQueue, (void *)&sendMsg, 10);                     // Send to msgQueue for interpretation
+                xQueueSend(msgQueue, (void *)&sendMsg, 20);                     // Send to msgQueue for interpretation
                 memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
                 index = 0;                                                      // Reset index counter.
             }
@@ -62,34 +62,37 @@ void userCLITask(void *param)                                                   
 
 void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
 {
-    Message someMsg;                                                                // Each object rec'd from User Input
+    Message someMsg;                                                            // Each object rec'd from User Input
     Command ledCmd;
-    SDCommand sdCardCmd;                                                            // New object for SD Card Comms
-    uint8_t localCPUFreq;                                                           // 80, 160 or 240Mhz
-    char buffer[BUF_LEN];                                                           // string buffer for Terminal Message
-    char matchingString[15];
-    char userInput[BUF_LEN];
+    SDCommand sdCardCmd;                                                        // New object for SD Card Comms
+    uint8_t localCPUFreq;                                                       // 80, 160 or 240Mhz
+    char buffer[BUF_LEN];                                                       // string buffer for Terminal Message
+    //char userInput[BUF_LEN];
+    //char matchingString[15];
     short ledValue = 0;
     int goodInput = -1;
 
-    memset(buffer, 0, BUF_LEN);                                                     // Clear input buffer
+    memset(buffer, 0, BUF_LEN);                                                 // Clear input buffer
+    //memset(userInput, 0, BUF_LEN);                                              // Clear input buffer
 
     for(;;)
     {
-        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)                  // If a `Message` is rec'd from queue
+        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)              // If a `Message` is rec'd from queue
         {
             Serial.println("User Input Received...Checking Validity...");
-            goodInput = testInput(someMsg.msg);                                     // -1 = NO MATCH, otherwise return INDEX#
+            strcpy(buffer, someMsg.msg);
+            goodInput = testInput(buffer);                                   // -1 = NO MATCH, otherwise return INDEX#
             int j = int(goodInput);
-            
-            if(goodInput >= 0)                                                      // found a Matching string if goodInput >= 0
-            {
-                strcpy(matchingString, sdCardCmd.cmd);                                    // copy matching string
-                sprintf(buffer, "\nMatch Found: %s", matchingString);
-                Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                                             // Clear input buffer
+            memset(buffer, 0, BUF_LEN);                                             // Clear input buffer
 
-                if(CPU_L <= goodInput && goodInput <= CPU_H)                                // Only for "EASY" stuff: `lscmd`, `cpu`, `freq`
+            if(goodInput >= 0)                                                  // found a Matching string if goodInput >= 0
+            {
+                strcpy(buffer, someMsg.msg);                            // copy matching string
+                sprintf(buffer, "\nMatch Found: %s", buffer);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+
+                if(CPU_L <= goodInput && goodInput <= CPU_H)                    // Only for "EASY" stuff: `lscmd`, `cpu`, `freq`
                 {
                     if(memcmp(someMsg.msg, allCommands[0], strlen(allCommands[0])) == 0)                 // `lscmd` command
                     {
@@ -162,22 +165,20 @@ void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
             } // END if(goodInput > 0)
             else // No input match (returned -1)
             {
-                strcpy(someMsg.msg, userInput);
-                sprintf(buffer, "\nInvalid Command: %s", userInput);
+                sprintf(buffer, "\nInvalid Command: %s", someMsg.msg);
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);
             }
         }
         vTaskDelay(25 / portTICK_PERIOD_MS);                                        // Yield to other tasks
-    }// END for(;;)
-}
-/** led2And13Task() listens for changes from the msgTask() **/
+    } // END for(;;)
+} /** led2And13Task() listens for changes from the msgTask() **/
 
 void led2And13Task(void *param)
 {
     /** Init LEDs & Functions **/
     
-    CRGB leds[NUM_LEDS];                                                            // Array for RGB LED on GPIO_2
+    CRGB* leds;                                                                     // BUGFIX: Create pointer to the array for RGB LED on GPIO_2
     FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(75);
     leds[0] = CRGB::White;                                                          // Power up all Pin 2 LEDs for Power On Test
@@ -185,9 +186,9 @@ void led2And13Task(void *param)
     
     ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                                       // Setup LEDC timer (For LED_BUILTIN)
     ledcAttachPin(BLUE_LED, LEDCchan);                                              // Attach timer to LED pin
-    vTaskDelay(2000 / portTICK_PERIOD_MS);                                          // 2 Second Power On Delay
+    delay(2000);                                          // 2 Second Power On Delay
 
-    Serial.println("Power On Test Complete...");
+    //Serial.println("Power On Test Complete...");
     leds[0] = CRGB::Black;
     FastLED.show();
     vTaskDelay(500 / portTICK_PERIOD_MS);                                           // 0.5 Second off before Starting Tasks
@@ -209,13 +210,13 @@ void led2And13Task(void *param)
     bool swap = false;                                                              // Swap Red/Blue colors
     bool lightsOff = false;
     uint8_t accessLEDCAnalog = 1;
-    leds[0] = CRGB::Red;                                                            // Start with Red LED when instantiated
+    //leds[0] = CRGB::Red;                                                      // Start with Red LED when instantiated
     FastLED.show();
 
     for(;;)
     {
         /*** Command Handling ***/
-        if(xQueueReceive(ledQueue, (void *)&ledCmd, 0) == pdTRUE)                   // if command received from MSG QUEUE
+        if(xQueueReceive(ledQueue, (void *)&ledCmd, 0) == pdTRUE)                   // if LED command received from MSG QUEUE
         {
             /* LED Commands */
             if(memcmp(ledCmd.cmd, allCommands[LED_L], strlen(allCommands[LED_L])) == 0)  // Check for `delay ` command: Ref: https://cplusplus.com/reference/cstring/memcmp/
