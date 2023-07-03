@@ -1,12 +1,6 @@
 
+#include <Arduino.h>
 #include "tasks.h"
-
-
-// CRGB* makeObj(CRGB* ledArray)
-// {
-//     CRGB leds[NUM_LEDS];  
-//     return leds;
-// };
 
 int testInput(const char* userInput)                                             // VALID / INVALID: If valid. which command?
 {

@@ -10,7 +10,8 @@
  * This program only runs/requires 1 CPU core, but after it tunes up well on a single core,
  * I will activate both cores.
  */
-
+#include <Arduino.h>
+#include <FastLED.h>
 #include "tasks.h"
 
 #if CONFIG_FREERTOS_UNICORE
@@ -28,39 +29,15 @@ static const BaseType_t APP_CPU = 1;
 /** SETUP BEGIN **/
 void setup()
 {
+    msgQueue = xQueueCreateStatic(QueueSize, sizeof(Message), msgQueueStorage, &xMsgQueue);                            // Instantiate message queue
+    ledQueue = xQueueCreateStatic(QueueSize, sizeof(Command), ledQueueStorage, &xLedQueue);                            // Instantiate command queue
+    //sdQueue = xQueueCreate(QueueSize, sizeof(SDCommand));                           // Instantiate SD Card Queue
     
-    msgQueue = xQueueCreate(QueueSize, sizeof(Message));                            // Instantiate message queue
-    ledQueue = xQueueCreate(QueueSize, sizeof(Command));                            // Instantiate command queue
-    sdQueue = xQueueCreate(QueueSize, sizeof(SDCommand));                           // Instantiate SD Card Queue
-    
-    CRGB leds[NUM_LEDS];                                                            // Array declaration for RGB LED on GPIO_2
+    /** Init LEDs & Functions **/ 
 
     Serial.begin(115200);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     Serial.println("\n\n=>> ESP32 FreeRTOS Command Line Demo: LEDs & SD Card <<=");
-
-    /** Init LEDs & Functions **/
-
-    //CRGB leds[NUM_LEDS];
-
-    // FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
-    // FastLED.setBrightness(75);
-
-    // Serial.println("Brightness Set....Turning On RGB LED now.");
-    
-    // leds[0] = CRGB::White;                                                          // Power up all Pin 2 LEDs for Power On Test
-    // FastLED.show();
-    
-    // ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                                       // Setup LEDC timer (For LED_BUILTIN)
-    // ledcAttachPin(BLUE_LED, LEDCchan);                                              // Attach timer to LED pin
-    // vTaskDelay(2000 / portTICK_PERIOD_MS);                                          // 2 Second Power On Delay
-
-    // Serial.println("Power On Test Complete...");
-    // leds[0] = CRGB::Black;
-    // FastLED.show();
-    // vTaskDelay(500 / portTICK_PERIOD_MS);                                           // 0.5 Second off before Starting Tasks
-
-    // Serial.println("...Beginning Task Creation....");
 
     xTaskCreatePinnedToCore(
         userCLITask,
@@ -76,7 +53,7 @@ void setup()
 
     xTaskCreatePinnedToCore(
         msgTask,
-        "rxusermesgs",
+        "rxusermsgs",
         4096,
         NULL,
         1,
@@ -86,7 +63,7 @@ void setup()
 
     Serial.println("msgTask Instantiation Complete...");
 
-    xTaskCreatePinnedToCore(                                                    // Instantiate LED fade task
+    xTaskCreatePinnedToCore(                                                        // Instantiate LED fade task
         led2And13Task,
         "led2andled13",
         4096,
@@ -98,19 +75,19 @@ void setup()
 
     Serial.println("led2Andled13 Task Instantiation Complete...");
 
-    xTaskCreatePinnedToCore(                                                    // Instantiate LED fade task
-        sdRXTask,
-        "rxsdelsesleep",
-        4096,
-        NULL,
-        1,
-        NULL,
-        app_cpu
-    );
+    // xTaskCreatePinnedToCore(                                                        // Instantiate LED fade task
+    //     sdRXTask,
+    //     "rxsdelsesleep",
+    //     4096,
+    //     NULL,
+    //     1,
+    //     NULL,
+    //     app_cpu
+    // );
     
-    Serial.println("sdRXTask Instantiation Complete...");                      // debug
+    // Serial.println("sdRXTask Instantiation Complete...");                           // debug
 
-    vTaskDelete(NULL);                                                          // Self Delete setup() & loop()
+    vTaskDelete(NULL);                                                              // Self Delete setup() & loop()
 }
 
 void loop() {}
