@@ -39,13 +39,17 @@ void led2And13Task(void* param)
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     leds[0] = CRGB::Black;
     FastLED.show();
+    
+    Serial.println("Task 3: Entering for(;;) loop...");
 
-    for(;;)
+    while(1)
     {
         Serial.println("Inside Task 3: for(;;) loop...");
         /*** Command Handling ***/
-        if(xQueueReceive(ledQueue, (void *)&ledCmd, 0) == pdTRUE)                   // if LED command received from MSG QUEUE
+        if(xQueueReceive(ledQueue, (void *)&buffer, 0) == pdTRUE)                   // if LED command received from MSG QUEUE
         {
+            strcpy(ledCmd.cmd, buffer);
+            memset(buffer, 0, BUF_LEN); 
             /* LED Commands */
             if(memcmp(ledCmd.cmd, allCommands[LED_L], strlen(allCommands[LED_L])) == 0)  // Check for `delay ` command: Ref: https://cplusplus.com/reference/cstring/memcmp/
             {

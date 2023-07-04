@@ -9,7 +9,6 @@
 #ifndef TASKS_H
 #define TASKS_H
 
-#include <FreeRTOSConfig.h>
 #include <SPI.h>
 #include <Arduino.h>
 #include <FastLED.h>
@@ -28,7 +27,7 @@
 #define NUM_LEDS 1                                                                      // Only 1 RGB LED on the ESP32 Thing Plus
 #define NUM_PATTERNS 5                                                                  // Total number of LED patterns
 
-static const uint8_t BUF_LEN = 255;                                                     // Buffer Length setting for user CLI terminal
+static const uint8_t BUF_LEN = 80;                                                     // Buffer Length setting for user CLI terminal
 static const int LEDCchan = 0;                                                          // use LEDC Channel 0
 static const int LEDCtimer = 12;                                                        // 12-bit precision LEDC timer
 static const int LEDCfreq = 5000;                                                       // 5000 Hz LEDC base freq.
@@ -37,9 +36,10 @@ static const int QueueSize = 5;                                                 
 
 static StaticQueue_t xMsgQueue;                                                          // Queue for CLI messages
 static StaticQueue_t xLedQueue;                                                          // Queue to LED commands
+static StaticQueue_t xSdQueue;                                                          // Queue to LED commands
 static QueueHandle_t msgQueue;
 static QueueHandle_t ledQueue;
-//static QueueHandle_t sdQueue;                                                           // Queue to handle SD card commands   
+static QueueHandle_t sdQueue;                                                           // Queue to handle SD card commands   
 
 enum Limits : int {                                                                     // Change Limits when adding / subtracting tasks
     CPU_L = 0, CPU_H = 2, LED_L = 3, LED_H = 7, SD_L = 8, SD_H = 17 
@@ -53,7 +53,7 @@ static const char allCommands[][15] = {
 };
 
 struct Message {                                                                        // Struct for CLI input
-    char msg[80];
+    char msg[BUF_LEN];
 };
 
 struct Command {                                                                        // Sent from `msgRXTask()` to `led2And13Task()`
@@ -63,18 +63,19 @@ struct Command {                                                                
 
 struct SDCommand {                                                                      // Sent from `msgRXTask()` to `SDCardTask()`
     char cmd[15];
-    char msg[80];                                                                       // default length of Bash Terminal Line
+    char msg[BUF_LEN];                                                                       // default length of Bash Terminal Line
 };
 
 static uint8_t msgQueueStorage[QueueSize * sizeof(Message)];
 static uint8_t ledQueueStorage[QueueSize * sizeof(Command)];
+static uint8_t sdQueueStorage[QueueSize * sizeof(SDCommand)];
 
 /** Function Declarations For `tasks.cpp` **/
 
 void userCLITask(void* );
 void msgTask(void* );
 void led2And13Task(void* );
-//void sdRXTask(void* );
+void sdRXTask(void* );
 
 /** Function Declarations For `tasksSupport.cpp`**/
 

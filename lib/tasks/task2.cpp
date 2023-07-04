@@ -12,6 +12,26 @@
 #include <Arduino.h>
 #include "tasks.h"
 
+void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax)   // 'value' must be between 0 & 'valueMax'
+{
+    uint32_t duty = (4095 / valueMax) * min(value, valueMax);                           // calculate duty cycle: 2^12 - 1 = 4095
+    ledcWrite(channel, duty);                                                           // write duty cycle to LEDC
+}
+
+int testInput(const char* userInput)                                             // VALID / INVALID: If valid. which command?
+{
+    unsigned cLength = 0;
+    for (int i = 0; i < sizeof(allCommands) / sizeof(allCommands[0]); ++i)
+    {
+        cLength = strlen(allCommands[i]);
+        if (memcmp(userInput, allCommands[i], cLength) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;                                                                          // Indicate no match
+}
+
 void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
 {
     Serial.println("Starting Task 2...");
@@ -19,21 +39,21 @@ void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
     Command ledCmd;
     SDCommand sdCardCmd;                                                        // New object for SD Card Comms
     uint8_t localCPUFreq;                                                       // 80, 160 or 240Mhz
+    //char rxBuffer[BUF_LEN];
     char buffer[BUF_LEN];                                                       // string buffer for Terminal Message
-    //char userInput[BUF_LEN];
-    //char matchingString[15];
     short ledValue = 0;
     int goodInput = -1;
 
     memset(buffer, 0, BUF_LEN);                                                 // Clear input buffer
-    //memset(userInput, 0, BUF_LEN);                                            // Clear input buffer
     Serial.println("Task 2 Entering For Loop...");
-    for(;;)
+    
+    while(1)
     {
-        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)              // If a `Message` is rec'd from queue
+        Serial.println("Inside Task 2: for(;;) loop...");
+        if(xQueueReceive(msgQueue, (void *)&buffer, 0) == pdTRUE)              // If a `Message` is rec'd from queue
         {
             Serial.println("User Input Received...Checking Validity...");
-            strcpy(buffer, someMsg.msg);
+            strcpy(someMsg.msg, buffer);                                        // copy buffer to object
             goodInput = testInput(buffer);                                      // -1 = NO MATCH, otherwise return INDEX#
             //int j = int(goodInput);
             memset(buffer, 0, BUF_LEN);                                         // Clear input buffer
@@ -100,14 +120,14 @@ void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
                     ledCmd.amount = ledValue;
                     xQueueSend(ledQueue, (void *)&ledCmd, 10);                      // Send to ledQueue for interpretation
                 }
-                // else if(SD_L <= goodInput && goodInput <= SD_H)                     // SD Commands: SEND TO SD QUEUE
-                // {
-                //     //char* tailPtr = someMsg.msg + strlen(allCommands[goodInput])
-                //     char* spacePos = strchr(someMsg.msg, ' ');
-                //     strcpy(sdCardCmd.cmd, allCommands[goodInput]);
-                //     strcpy(sdCardCmd.msg, spacePos + 1);                            // Retrieve 2nd portion of SC Command
-                //     xQueueSend(sdQueue, (void *)&sdCardCmd, 10);                    // Send to sdQueue for interpretation
-                // }
+                else if(SD_L <= goodInput && goodInput <= SD_H)                     // SD Commands: SEND TO SD QUEUE
+                {
+                    //char* tailPtr = someMsg.msg + strlen(allCommands[goodInput])
+                    char* spacePos = strchr(someMsg.msg, ' ');
+                    strcpy(sdCardCmd.cmd, allCommands[goodInput]);
+                    strcpy(sdCardCmd.msg, spacePos + 1);                            // Retrieve 2nd portion of SC Command
+                    xQueueSend(sdQueue, (void *)&sdCardCmd, 10);                    // Send to sdQueue for interpretation
+                }
                 else // Is this case valid??
                 {
                     sprintf(buffer, "\n\nThis should not happen: goodInput = %d\n\n", goodInput);

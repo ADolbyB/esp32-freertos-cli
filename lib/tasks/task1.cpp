@@ -16,7 +16,8 @@ void userCLITask(void *param)                                                   
 
     memset(buffer, 0, BUF_LEN);                                                 // Clear user input buffer
 
-    for(;;)
+    Serial.println("Task 1 Entering for(;;) Loop...");
+    while(1)
     {       
         if(Serial.available() > 0)
         {

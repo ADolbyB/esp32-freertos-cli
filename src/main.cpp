@@ -31,7 +31,7 @@ void setup()
 {
     msgQueue = xQueueCreateStatic(QueueSize, sizeof(Message), msgQueueStorage, &xMsgQueue);                            // Instantiate message queue
     ledQueue = xQueueCreateStatic(QueueSize, sizeof(Command), ledQueueStorage, &xLedQueue);                            // Instantiate command queue
-    //sdQueue = xQueueCreate(QueueSize, sizeof(SDCommand));                           // Instantiate SD Card Queue
+    sdQueue = xQueueCreateStatic(QueueSize, sizeof(SDCommand), sdQueueStorage, &xSdQueue);                           // Instantiate SD Card Queue
     
     /** Init LEDs & Functions **/ 
 
@@ -41,8 +41,8 @@ void setup()
 
     xTaskCreatePinnedToCore(
         userCLITask,
-        "Read Raw User Input",
-        4096,
+        "readInput",
+        8192,
         NULL,
         1,
         NULL,
@@ -53,8 +53,8 @@ void setup()
 
     xTaskCreatePinnedToCore(
         msgTask,
-        "rxusermsgs",
-        4096,
+        "rxMsgs",
+        8192,
         NULL,
         1,
         NULL,
@@ -65,8 +65,8 @@ void setup()
 
     xTaskCreatePinnedToCore(                                                        // Instantiate LED fade task
         led2And13Task,
-        "led2andled13",
-        4096,
+        "leds2and13",
+        8192,
         NULL,
         1,
         NULL,
@@ -75,17 +75,17 @@ void setup()
 
     Serial.println("led2Andled13 Task Instantiation Complete...");
 
-    // xTaskCreatePinnedToCore(                                                        // Instantiate LED fade task
-    //     sdRXTask,
-    //     "rxsdelsesleep",
-    //     4096,
-    //     NULL,
-    //     1,
-    //     NULL,
-    //     app_cpu
-    // );
+    xTaskCreatePinnedToCore(                                                        // Instantiate LED fade task
+        sdRXTask,
+        "rxSdCard",
+        8192,
+        NULL,
+        1,
+        NULL,
+        app_cpu
+    );
     
-    // Serial.println("sdRXTask Instantiation Complete...");                           // debug
+    Serial.println("sdRXTask Instantiation Complete...");                           // debug
 
     vTaskDelete(NULL);                                                              // Self Delete setup() & loop()
 }
