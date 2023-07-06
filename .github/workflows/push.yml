@@ -1,6 +1,6 @@
 name: PIO Build
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   main:

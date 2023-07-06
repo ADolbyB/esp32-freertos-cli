@@ -3,8 +3,6 @@
 .vscode/
 lib/README
 include/README
-CMakeLists.txt
-sdkconfig
-sdkconfig.old
+test/README
 /build
 #platformio.ini
