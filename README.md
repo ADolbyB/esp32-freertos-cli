@@ -16,7 +16,8 @@ This is a work in progress.
 
 ## Status:
 
- [![PIO Build](https://github.com/ADolbyB/esp32-freertos-cli/actions/workflows/push.yml/badge.svg)](https://github.com/ADolbyB/esp32-freertos-cli/actions/workflows/push.yml)
+[![PIO Build](https://github.com/ADolbyB/esp32-freertos-cli/actions/workflows/push.yml/badge.svg)](https://github.com/ADolbyB/esp32-freertos-cli/actions/workflows/push.yml)
+![GitHub repo size](https://img.shields.io/github/repo-size/ADolbyB/esp32-freertos-cli?label=Repo%20Size&logo=Github)
 
 ## References:
 
@@ -35,7 +36,7 @@ Setup & Programming:
  - Read the official [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html).
 
  - The board I used for practice is an [ESP32 Thing Plus C](https://www.sparkfun.com/products/18018) from [SparkFun](https://www.sparkfun.com/).
-      - Specs from `hello_world` sample sketch: ![image]()
+      - Specs from `hello_world` sample sketch: ![image](./assets/hello_world.png)
 
 Firmware Flashing:
 
