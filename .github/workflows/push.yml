@@ -1,10 +1,10 @@
-name: PIO CI Pull_Req
+name: PIO Build
 
-on: [pull_request]
+on: [push, pull_request]
 
 jobs:
   main:
-    name: PIO CI PR
+    name: PIO BP
     runs-on: ubuntu-latest
 
     steps:
