@@ -4,5 +4,4 @@
 lib/README
 include/README
 test/README
-/build
 #platformio.ini
