@@ -24,6 +24,8 @@ Other Repos Worth Mentioning:
 
  - [liscolab](https://github.com/abellisco/liscolab) CLI port of FreeRTOS CLI to ESP32.
 
+ - [FreeRTOS-Plus-CLI](https://www.freertos.org/FreeRTOS-Plus/FreeRTOS_Plus_CLI/FreeRTOS_Plus_Command_Line_Interface.html) Command Line Interface Framework. Useful for adding custom commands.
+
 General FreeRTOS:
  
  - FreeRTOS is Currently Documented by [AWS: FreeRTOS Documentation](https://docs.aws.amazon.com/freertos/index.html)
