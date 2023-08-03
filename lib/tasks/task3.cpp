@@ -53,7 +53,7 @@ void led2And13Task(void* param)
     
     Serial.println("Task 3: Entering for(;;) loop...");
 
-    while(1)
+    for(;;)
     {
         Serial.println("Inside Task 3: for(;;) loop...");
         /*** Command Handling ***/
@@ -292,7 +292,7 @@ void led2And13Task(void* param)
         }
         else
         {
-            Serial.println("Error! ledQueue == NULL");
+            Serial.println("ERROR! Could Not Create ledQueue!!");
         }
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);                         // CLI adjustable delay (non blocking)
     }

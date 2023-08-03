@@ -47,7 +47,7 @@ void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
     memset(buffer, 0, BUF_LEN);                                                 // Clear input buffer
     Serial.println("Task 2 Entering For Loop...");
     
-    while(1)
+    for(;;)
     {
         Serial.println("Inside Task 2: for(;;) loop...");
         if(msgQueue != NULL)
@@ -147,7 +147,7 @@ void msgTask(void* param)        /*** CLI Input Validation / Handling ***/
         }
         else
         {
-            Serial.println("ERROR! msgQueue == NULL");
+            Serial.println("ERROR! Could Not Create msgQueue!!");
         }
         
         vTaskDelay(25 / portTICK_PERIOD_MS);                                        // Yield to other tasks
