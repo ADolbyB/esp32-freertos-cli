@@ -57,32 +57,28 @@ static const char allCommands[][15] = {
     "writefile ", "append ", "rename ", "rmfile ", "lsbytes"                            // SD Functions [8, 17]
 };
 
-struct Message {                                                                        // Struct for CLI input
-    char msg[5];
-};
+typedef struct Message {                                                                // Struct for CLI input
+    char msg[15];                                                                       // same size as each allCommands[] entry
+} Message;
 
-struct Command {                                                                        // Sent from `msgRXTask()` to `led2And13Task()`
-    char cmd[4];
+typedef struct Command {                                                                // Sent from `msgRXTask()` to `led2And13Task()`
+    char cmd[12];
     int amount;
-};
+} Command;
 
-struct SDCommand {                                                                      // Sent from `msgRXTask()` to `SDCardTask()`
-    char cmd[4];
-    char msg[1];                                                                        // default length of Bash Terminal Line
-};
+typedef struct SDCommand {                                                              // Sent from `msgRXTask()` to `sdCardTask()`
+    char cmd[10];
+    char msg[5];                                                                        // default length of Bash Terminal Line
+} SDCommand;
 
 //static uint8_t msgQueueStorage[QueueSize * sizeof(Message)];
 //static uint8_t ledQueueStorage[QueueSize * sizeof(Command)];
 //static uint8_t sdQueueStorage[QueueSize * sizeof(SDCommand)];
 
-/** Function Declarations For `tasks.cpp` **/
-
 void userCLITask(void* );
 void msgTask(void* );
 void led2And13Task(void* );
 void sdRXTask(void* );
-
-/** Function Declarations For `tasksSupport.cpp`**/
 
 int testInput(const char* userInput);
 void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255);
